@@ -36,6 +36,22 @@ class KDTree:
         self.all_points = points  # store all points for visualization
         self.root = self.build_tree(points, 0)
     
+    def find_highest_variance_axis(self, points):
+        """
+        Find the axis (dimension) with the highest variance.
+        
+        Args:
+            points: Array of points to analyze.
+            
+        Returns:
+            Index of the axis with highest variance.
+        """
+        # Calculate variance along each dimension
+        variances = np.var(points, axis=0)
+        
+        # Return the index of the dimension with highest variance
+        return np.argmax(variances)
+    
     @time_decorator
     def build_tree(self, points, depth):
         """
@@ -52,7 +68,8 @@ class KDTree:
             return None
             
         # Select axis based on depth so that axis cycles through all dimensions
-        axis = depth % self.k
+        axis = self.find_highest_variance_axis(points=points)
+        # axis = depth % self.k
         
         # Sort points along the selected axis
         points = points[points[:, axis].argsort()]
@@ -90,17 +107,14 @@ class KDTree:
         best = [None, float('inf')]  # [nearest_point, nearest_distance]
         search_path = []  # Store nodes visited for visualization
         
-        def _search(node, depth):
+        def _search(node):
             if node is None:
                 return
                 
             search_path.append(node)
-                
-            # Current dimension
-            axis = depth % self.k
             
             # Compute current distance
-            current_distance = np.sqrt(np.sum((query_point - node.point) ** 2))
+            current_distance = np.sum((query_point - node.point) ** 2)
             
             # Update best if current point is closer
             if current_distance < best[1]:
@@ -108,22 +122,22 @@ class KDTree:
                 best[1] = current_distance
             
             # Decide which subtree to search first based on query point position
-            if query_point[axis] < node.point[axis]:
+            if query_point[node.axis] < node.point[node.axis]:
                 first, second = node.left, node.right
             else:
                 first, second = node.right, node.left
                 
             # Search the most promising subtree first
-            _search(first, depth + 1)
+            _search(first)
             
             # Check if we need to search the other subtree
             # If the distance to the splitting plane is greater than the current best distance,
             # we don't need to search the other subtree
-            if (query_point[axis] - node.point[axis])**2 < best[1]:
-                _search(second, depth + 1)
+            if (query_point[node.axis] - node.point[node.axis])**2 < best[1]:
+                _search(second)
         
-        _search(self.root, 0)
-        print(f"Nearest point to {query_point} is {best[0]} with distance {best[1]:.2f}")
+        _search(self.root)
+        print(f"Nearest point to {query_point} is {best[0]} with distance {np.sqrt(best[1]):.2f}")
         return tuple(best), search_path
     
     @time_decorator
@@ -148,17 +162,14 @@ class KDTree:
         nearest = []  # (negative distance, point) pairs
         search_path = []  # Store nodes visited for visualization
         
-        def _search(node, depth):
+        def _search(node):
             if node is None:
                 return
                 
             search_path.append(node)
-                
-            # Current dimension
-            axis = depth % self.k
             
             # Compute current distance
-            current_distance = np.sqrt(np.sum((query_point - node.point) ** 2))
+            current_distance = np.sum((query_point - node.point) ** 2)
             
             # If we have less than k points or current point is closer than the furthest point in our heap
             if len(nearest) < k or -nearest[0][0] > current_distance:
@@ -169,27 +180,27 @@ class KDTree:
                     heapq.heappush(nearest, (-current_distance, tuple(node.point)))
             
             # Decide which subtree to search first based on query point position
-            if query_point[axis] < node.point[axis]:
+            if query_point[node.axis] < node.point[node.axis]:
                 first, second = node.left, node.right
             else:
                 first, second = node.right, node.left
                 
             # Search the most promising subtree first
-            _search(first, depth + 1)
+            _search(first)
             
             # Check if we need to search the other subtree
             # If the distance to the splitting plane is greater than the furthest point in our heap,
             # we don't need to search the other subtree
-            if len(nearest) < k or abs(query_point[axis] - node.point[axis]) < -nearest[0][0]:
-                _search(second, depth + 1)
+            if len(nearest) < k or abs(query_point[node.axis] - node.point[node.axis]) ** 2 < -nearest[0][0]:
+                _search(second)
         
-        _search(self.root, 0)
+        _search(self.root)
         
         # Convert heap to sorted list of (point, distance) pairs
         result = [(point, -dist) for dist, point in sorted(nearest, reverse=True)]
         print(f"{k} nearest points to {query_point}:")
         for i, (point, dist) in enumerate(result):
-            print(f"{i+1}: {point} with distance {dist:.2f}")
+            print(f"{i+1}: {point} with distance {np.sqrt(dist):.2f}")
         return result, search_path
     
     @time_decorator
@@ -211,38 +222,31 @@ class KDTree:
             lower_bound = np.array(lower_bound)
         if not isinstance(upper_bound, np.ndarray):
             upper_bound = np.array(upper_bound)
-            
+        if not np.all(lower_bound <= upper_bound):
+            raise ValueError("Invalid range: lower_bound must be less than or equal to upper_bound in all dimensions")
+        
         result = []
         search_path = []  # Store nodes visited for visualization
         
-        def _search(node, depth):
+        def _search(node):
             if node is None:
                 return
                 
             search_path.append(node)
                 
             # Check if the current point is within the range
-            in_range = True
-            for i in range(self.k):
-                if node.point[i] < lower_bound[i] or node.point[i] > upper_bound[i]:
-                    in_range = False
-                    break
-                    
-            if in_range:
+            if np.all(lower_bound <= node.point) and np.all(node.point <= upper_bound):
                 result.append(node.point)
             
-            # Current dimension
-            axis = depth % self.k
-            
             # Check if the left subtree needs to be searched
-            if node.left is not None and lower_bound[axis] <= node.point[axis]:
-                _search(node.left, depth + 1)
+            if node.left is not None and lower_bound[node.axis] <= node.point[node.axis]:
+                _search(node.left)
                 
             # Check if the right subtree needs to be searched
-            if node.right is not None and upper_bound[axis] >= node.point[axis]:
-                _search(node.right, depth + 1)
+            if node.right is not None and upper_bound[node.axis] >= node.point[node.axis]:
+                _search(node.right)
         
-        _search(self.root, 0)
+        _search(self.root)
         print(f"Points in range {lower_bound} to {upper_bound}:")
         for point in result:
             print(f"{point}")
@@ -271,8 +275,7 @@ class KDTree:
             # Add some padding
             padding = (max_vals - min_vals) * 0.1
             bounds = (min_vals[0] - padding[0], min_vals[1] - padding[1],
-                     max_vals[0] + padding[0], max_vals[1] + padding[1])
-                     
+                    max_vals[0] + padding[0], max_vals[1] + padding[1])
         if node is None:
             node = self.root
             # Plot all points
@@ -284,7 +287,17 @@ class KDTree:
         # Draw the splitting line
         axis = node.axis
         if axis == 0:  # Vertical line (split on x-axis)
-            ax.plot([node.point[0], node.point[0]], [bounds[1], bounds[3]], 'r-', alpha=0.5)
+            y_min = bounds[1]
+            y_max = bounds[3]
+            if y_max <= y_min:
+                # get the global y bounds
+                y_min -= 0.5
+                y_max += 0.5
+                # Add padding
+                padding = (y_max - y_min) * 0.1
+                y_min -= padding
+                y_max += padding
+            ax.plot([node.point[0], node.point[0]], [y_min, y_max], 'r-', alpha=0.5)
             
             # Recurse to left and right subtrees with updated bounds
             if node.left:
@@ -295,7 +308,17 @@ class KDTree:
                 self.visualize_tree(new_bounds, ax, depth + 1, node.right)
                 
         else:  # Horizontal line (split on y-axis)
-            ax.plot([bounds[0], bounds[2]], [node.point[1], node.point[1]], 'g-', alpha=0.5)
+            x_min = bounds[0]
+            x_max = bounds[2]
+            if x_max <= x_min:
+                # get the global x bounds
+                x_min -= 0.5
+                x_max += 0.5
+                # Add padding
+                padding = (x_max - x_min) * 0.1
+                x_min -= padding
+                x_max += padding
+            ax.plot([x_min, x_max], [node.point[1], node.point[1]], 'g-', alpha=0.5)
             
             # Recurse to left and right subtrees with updated bounds
             if node.left:
