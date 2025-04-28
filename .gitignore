@@ -1,0 +1,17 @@
+# 忽略 Python 编译生成的文件
+*.pyc
+__pycache__/
+
+# 忽略虚拟环境
+venv/
+env/
+
+# 忽略日志文件
+*.log
+
+# 忽略 IDE 自动生成的文件
+.idea/
+.vscode/
+
+output/
+others/
