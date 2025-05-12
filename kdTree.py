@@ -3,15 +3,10 @@ import heapq
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from myTime import time_decorator
+import time
 class KDTree:
-    """
-    K-dimensional tree implementation for efficient spatial searches with visualization.
-    """
     
     class Node:
-        """
-        Node in the KD-Tree
-        """
         def __init__(self, point, left=None, right=None, axis=None):
             self.point = point  # k-dimensional point
             self.left = left    # left child
@@ -19,12 +14,6 @@ class KDTree:
             self.axis = axis    # split axis
     
     def __init__(self, points):
-        """
-        Initialize KD-Tree with a list of points.
-        
-        Args:
-            points: List of points where each point is a list or array of k dimensions.
-        """
         if not isinstance(points, np.ndarray):
             points = np.array(points)
         
@@ -34,36 +23,19 @@ class KDTree:
             
         self.k = points.shape[1]  # number of dimensions
         self.all_points = points  # store all points for visualization
+        startTime = time.time()
         self.root = self.build_tree(points, 0)
+        endTime = time.time()
+        print(f"function build_tree took {(endTime - startTime):4f} seconds")
     
     def find_highest_variance_axis(self, points):
-        """
-        Find the axis (dimension) with the highest variance.
-        
-        Args:
-            points: Array of points to analyze.
-            
-        Returns:
-            Index of the axis with highest variance.
-        """
         # Calculate variance along each dimension
         variances = np.var(points, axis=0)
         
         # Return the index of the dimension with highest variance
         return np.argmax(variances)
     
-    @time_decorator
     def build_tree(self, points, depth):
-        """
-        Recursively build the KD-Tree.
-        
-        Args:
-            points: Array of points to build the tree from.
-            depth: Current depth in the tree.
-            
-        Returns:
-            Root node of the subtree.
-        """
         if len(points) == 0:
             return None
             
@@ -89,15 +61,6 @@ class KDTree:
     
     @time_decorator
     def nearest_neighbor(self, query_point):
-        """
-        Find the nearest neighbor to the query point.
-        
-        Args:
-            query_point: The point to find the nearest neighbor for.
-            
-        Returns:
-            Tuple of (nearest point, distance)
-        """
         if self.root is None:
             return None, float('inf')
             
@@ -137,21 +100,10 @@ class KDTree:
                 _search(second)
         
         _search(self.root)
-        print(f"Nearest point to {query_point} is {best[0]} with distance {np.sqrt(best[1]):.2f}")
         return tuple(best), search_path
     
     @time_decorator
     def k_nearest_neighbors(self, query_point, k=1):
-        """
-        Find the k nearest neighbors to the query point.
-        
-        Args:
-            query_point: The point to find the nearest neighbors for.
-            k: Number of nearest neighbors to find.
-            
-        Returns:
-            List of k nearest points and their distances.
-        """
         if self.root is None:
             return []
             
@@ -198,23 +150,10 @@ class KDTree:
         
         # Convert heap to sorted list of (point, distance) pairs
         result = [(point, -dist) for dist, point in sorted(nearest, reverse=True)]
-        print(f"{k} nearest points to {query_point}:")
-        for i, (point, dist) in enumerate(result):
-            print(f"{i+1}: {point} with distance {np.sqrt(dist):.2f}")
         return result, search_path
     
     @time_decorator
     def range_search(self, lower_bound, upper_bound):
-        """
-        Find all points within the given range.
-        
-        Args:
-            lower_bound: Lower bound of the range (inclusive).
-            upper_bound: Upper bound of the range (inclusive).
-            
-        Returns:
-            List of points within the range.
-        """
         if self.root is None:
             return []
             
@@ -247,21 +186,9 @@ class KDTree:
                 _search(node.right)
         
         _search(self.root)
-        print(f"Points in range {lower_bound} to {upper_bound}:")
-        for point in result:
-            print(f"{point}")
         return result, search_path
     
     def visualize_tree(self, bounds=None, ax=None, depth=0, node=None):
-        """
-        Visualize the KD-Tree structure (currently supports 2D only).
-        
-        Args:
-            bounds: The bounds of the current region (min_x, min_y, max_x, max_y).
-            ax: Matplotlib axis to plot on.
-            depth: Current depth in the tree.
-            node: Current node to visualize.
-        """
         if self.k != 2:
             raise ValueError("Visualization is only supported for 2D trees")
             
@@ -342,13 +269,6 @@ class KDTree:
         return ax
     
     def visualize_nearest_neighbor(self, query_point, ax=None):
-        """
-        Visualize the nearest neighbor search process (supports 2D points only).
-        
-        Args:
-            query_point: Query point to find nearest neighbor for.
-            ax: Matplotlib axis to plot on.
-        """
         if self.k != 2:
             raise ValueError("Visualization is only supported for 2D trees")
             
@@ -363,6 +283,7 @@ class KDTree:
         
         # Perform nearest neighbor search and get the search path
         (nearest_point, distance), search_path = self.nearest_neighbor(query_point)
+        print(f"Nearest point to {query_point} is {nearest_point} with distance {np.sqrt(distance):.2f}")
         
         # Plot query point
         ax.scatter(query_point[0], query_point[1], c='purple', s=100, marker='*', label='Query Point')
@@ -388,14 +309,6 @@ class KDTree:
         return ax
     
     def visualize_k_nearest_neighbors(self, query_point, k, ax=None):
-        """
-        Visualize the k nearest neighbors search process.
-        
-        Args:
-            query_point: Query point to find nearest neighbors for.
-            k: Number of nearest neighbors to find.
-            ax: Matplotlib axis to plot on.
-        """
         if self.k != 2:
             raise ValueError("Visualization is only supported for 2D trees")
             
@@ -410,7 +323,9 @@ class KDTree:
         
         # Perform k nearest neighbors search and get the search path
         k_nearest, search_path = self.k_nearest_neighbors(query_point, k)
-        
+        print(f"{k} nearest points to {query_point}:")
+        for i, (point, dist) in enumerate(k_nearest):
+            print(f"{i+1}: {point} with distance {np.sqrt(dist):.2f}")
         # Plot query point
         ax.scatter(query_point[0], query_point[1], c='purple', s=100, marker='*', label='Query Point')
         
@@ -438,14 +353,6 @@ class KDTree:
         return ax
     
     def visualize_range_search(self, lower_bound, upper_bound, ax=None):
-        """
-        Visualize the range search process.
-        
-        Args:
-            lower_bound: Lower bound of the range.
-            upper_bound: Upper bound of the range.
-            ax: Matplotlib axis to plot on.
-        """
         if self.k != 2:
             raise ValueError("Visualization is only supported for 2D trees")
             
@@ -462,7 +369,9 @@ class KDTree:
         
         # Perform range search and get the search path
         points_in_range, search_path = self.range_search(lower_bound, upper_bound)
-        
+        print(f"Points in range {lower_bound} to {upper_bound}:")
+        for point in points_in_range:
+            print(f"{point}")
         # Draw the range rectangle
         rect_width = upper_bound[0] - lower_bound[0]
         rect_height = upper_bound[1] - lower_bound[1]
@@ -486,9 +395,6 @@ class KDTree:
         return ax
     
     def __str__(self):
-        """
-        Return a string representation of the tree.
-        """
         if self.root is None:
             return "Empty KD-Tree"
             
